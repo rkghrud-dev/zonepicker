@@ -7,22 +7,36 @@
         ShowInTaskbar="False" Left="0" Top="0">
 
     <Grid>
-        <!-- 배경 (모드에 따라 흰색 or 검정) -->
+        <!-- 배경 -->
         <Rectangle x:Name="DimBackground" IsHitTestVisible="False"/>
 
-        <!-- Zone 색 블록 (편집 모드에서만) -->
+        <!-- Zone 레이블 (편집 모드) -->
         <Canvas x:Name="ZoneCanvas" IsHitTestVisible="False"/>
 
         <!-- 분할선 -->
         <Canvas x:Name="LineCanvas" IsHitTestVisible="False"/>
 
+        <!-- 선 배치 미리보기 -->
+        <Canvas x:Name="PreviewCanvas" IsHitTestVisible="False"/>
+
         <!-- Zone 하단 작업표시줄 (Zone 모드) -->
         <Canvas x:Name="ZoneBarCanvas" Background="Transparent"/>
 
-        <!-- 드래그 핸들 (편집 모드) -->
-        <Canvas x:Name="HandleCanvas" Background="Transparent"/>
+        <!-- 드래그/배치 입력 레이어 (편집 모드) -->
+        <Canvas x:Name="HandleCanvas" Background="Transparent"
+                MouseMove="HandleCanvas_MouseMove"
+                MouseLeftButtonDown="HandleCanvas_Click"/>
 
-        <!-- ─ 컨트롤 바 (항상 표시) ─ -->
+        <!-- 배치 모드 안내 텍스트 -->
+        <Border x:Name="PlacingHint" Visibility="Collapsed"
+                VerticalAlignment="Top" HorizontalAlignment="Center"
+                Margin="0,20,0,0" Background="#CC1A1A2E"
+                CornerRadius="8" Padding="16,8">
+            <TextBlock x:Name="PlacingHintText" Foreground="White"
+                       FontSize="14" FontWeight="Bold"/>
+        </Border>
+
+        <!-- 컨트롤 바 -->
         <Border x:Name="ControlBar"
                 VerticalAlignment="Bottom" HorizontalAlignment="Right"
                 Margin="0,0,20,20"
@@ -30,79 +44,67 @@
                 BorderBrush="#55FFFFFF" BorderThickness="1"
                 Height="56">
             <Grid>
-            <!-- Zone 모드 컨트롤 -->
-            <StackPanel x:Name="ZoneModeBar" Orientation="Horizontal"
-                        Margin="10,0" VerticalAlignment="Center"
-                        Visibility="Visible">
+                <!-- Zone 모드 바 -->
+                <StackPanel x:Name="ZoneModeBar" Orientation="Horizontal"
+                            Margin="10,0" VerticalAlignment="Center">
+                    <Button x:Name="BtnToggleMode" Width="110" Height="36"
+                            Background="#2196F3" Foreground="White"
+                            FontWeight="Bold" FontSize="12" BorderThickness="0"
+                            Content="존 모드 ON" Click="BtnToggleMode_Click" Cursor="Hand"
+                            Margin="0,0,6,0"/>
+                    <Button x:Name="BtnEnterEdit" Width="70" Height="36"
+                            Background="#FF9800" Foreground="White"
+                            FontWeight="Bold" FontSize="12" BorderThickness="0"
+                            Content="존 편집" Click="BtnEnterEdit_Click" Cursor="Hand"
+                            Margin="0,0,8,0"/>
+                    <TextBlock Text="밝기" Foreground="#99FFFFFF" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <Slider x:Name="OpacitySlider" Width="70"
+                            Minimum="0" Maximum="0.5" Value="0.12"
+                            VerticalAlignment="Center" Margin="0,0,8,0"
+                            ValueChanged="OpacitySlider_ValueChanged"/>
+                    <Button Content="✕" Width="26" Height="26"
+                            Background="Transparent" Foreground="#88FFFFFF"
+                            BorderThickness="0" FontSize="13"
+                            Click="BtnExit_Click" Cursor="Hand"/>
+                </StackPanel>
 
-                <Button x:Name="BtnToggleMode" Width="110" Height="36"
-                        Background="#2196F3" Foreground="White"
-                        FontWeight="Bold" FontSize="12" BorderThickness="0"
-                        Content="존 모드 ON" Click="BtnToggleMode_Click" Cursor="Hand"
-                        Margin="0,0,6,0"/>
+                <!-- 편집 모드 바 -->
+                <StackPanel x:Name="EditModeBar" Orientation="Horizontal"
+                            Margin="10,0" VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Button x:Name="BtnDone" Width="70" Height="36"
+                            Background="#4CAF50" Foreground="White"
+                            FontWeight="Bold" FontSize="12" BorderThickness="0"
+                            Content="✔ 완료" Click="BtnDone_Click" Cursor="Hand"
+                            Margin="0,0,8,0"/>
 
-                <Button x:Name="BtnEnterEdit" Width="70" Height="36"
-                        Background="#FF9800" Foreground="White"
-                        FontWeight="Bold" FontSize="12" BorderThickness="0"
-                        Content="존 편집" Click="BtnEnterEdit_Click" Cursor="Hand"
-                        Margin="0,0,6,0"/>
+                    <!-- 추가 버튼들 -->
+                    <Border BorderBrush="#44FFFFFF" BorderThickness="1"
+                            CornerRadius="6" Padding="6,4" Margin="0,0,6,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="추가:" Foreground="#AAAACC"
+                                       FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <Button Width="52" Height="28" Background="#3F51B5" Foreground="White"
+                                    FontSize="11" BorderThickness="0" Content="● 점"
+                                    Click="BtnAddPoint_Click" Cursor="Hand" Margin="0,0,3,0"
+                                    ToolTip="교차점 추가 - 클릭으로 위치 지정"/>
+                            <Button Width="58" Height="28" Background="#009688" Foreground="White"
+                                    FontSize="11" BorderThickness="0" Content="— 가로"
+                                    Click="BtnAddHLine_Click" Cursor="Hand" Margin="0,0,3,0"
+                                    ToolTip="가로선 추가 - 클릭으로 존 분할"/>
+                            <Button Width="58" Height="28" Background="#009688" Foreground="White"
+                                    FontSize="11" BorderThickness="0" Content="| 세로"
+                                    Click="BtnAddVLine_Click" Cursor="Hand"
+                                    ToolTip="세로선 추가 - 클릭으로 존 분할"/>
+                        </StackPanel>
+                    </Border>
 
-                <TextBlock Text="밝기" Foreground="#99FFFFFF" FontSize="11"
-                           VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <Slider x:Name="OpacitySlider" Width="70"
-                        Minimum="0" Maximum="0.5" Value="0.12"
-                        VerticalAlignment="Center" Margin="0,0,8,0"
-                        ValueChanged="OpacitySlider_ValueChanged"/>
-
-                <Button Content="✕" Width="26" Height="26"
-                        Background="Transparent" Foreground="#88FFFFFF"
-                        BorderThickness="0" FontSize="13"
-                        Click="BtnExit_Click" Cursor="Hand"/>
-            </StackPanel>
-
-            <!-- 편집 모드 컨트롤 -->
-            <StackPanel x:Name="EditModeBar" Orientation="Horizontal"
-                        Margin="10,0" VerticalAlignment="Center"
-                        Visibility="Collapsed">
-
-                <Button x:Name="BtnDone" Width="70" Height="36"
-                        Background="#4CAF50" Foreground="White"
-                        FontWeight="Bold" FontSize="12" BorderThickness="0"
-                        Content="✔ 완료" Click="BtnDone_Click" Cursor="Hand"
-                        Margin="0,0,8,0"/>
-
-                <!-- 존 추가 그룹 -->
-                <Border BorderBrush="#44FFFFFF" BorderThickness="1"
-                        CornerRadius="6" Padding="6,4" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="존 추가:" Foreground="#AAAACC"
-                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <Button x:Name="BtnAddPoint" Width="60" Height="28"
-                                Background="#3F51B5" Foreground="White"
-                                FontSize="11" BorderThickness="0"
-                                Content="● 점" Click="BtnAddPoint_Click"
-                                Cursor="Hand" Margin="0,0,4,0"
-                                ToolTip="교차점 추가 (+4 Zone)"/>
-                        <Button x:Name="BtnAddHLine" Width="60" Height="28"
-                                Background="#009688" Foreground="White"
-                                FontSize="11" BorderThickness="0"
-                                Content="— 가로선" Click="BtnAddHLine_Click"
-                                Cursor="Hand" Margin="0,0,4,0"
-                                ToolTip="가로선 추가 (+2 Zone)"/>
-                        <Button x:Name="BtnAddVLine" Width="60" Height="28"
-                                Background="#009688" Foreground="White"
-                                FontSize="11" BorderThickness="0"
-                                Content="| 세로선" Click="BtnAddVLine_Click"
-                                Cursor="Hand"
-                                ToolTip="세로선 추가 (+2 Zone)"/>
-                    </StackPanel>
-                </Border>
-
-                <Button Content="✕" Width="26" Height="26"
-                        Background="Transparent" Foreground="#88FFFFFF"
-                        BorderThickness="0" FontSize="13"
-                        Click="BtnExit_Click" Cursor="Hand"/>
-            </StackPanel>
+                    <Button Content="✕" Width="26" Height="26"
+                            Background="Transparent" Foreground="#88FFFFFF"
+                            BorderThickness="0" FontSize="13"
+                            Click="BtnExit_Click" Cursor="Hand"/>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>
