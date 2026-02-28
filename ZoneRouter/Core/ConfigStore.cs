@@ -1,8 +1,13 @@
 using System.IO;
 using System.Text.Json;
-using System.Windows;
 
 namespace ZoneRouter.Core;
+
+public class SplitPoint
+{
+    public double X { get; set; }
+    public double Y { get; set; }
+}
 
 public class ZoneDefinition
 {
@@ -13,16 +18,19 @@ public class ZoneDefinition
 
 public class AppConfig
 {
-    // 다중 선 (세로선 x좌표 목록, 가로선 y좌표 목록)
-    public List<double> VerticalLines { get; set; } = new();
-    public List<double> HorizontalLines { get; set; } = new();
+    // 교차점 목록 (각 점 = 세로선 x + 가로선 y)
+    public List<SplitPoint> SplitPoints { get; set; } = new();
+    // 단독 세로선 (x만)
+    public List<double> ExtraVLines { get; set; } = new();
+    // 단독 가로선 (y만)
+    public List<double> ExtraHLines { get; set; } = new();
 
-    // 구버전 호환용 (마이그레이션에 사용)
+    public double OverlayOpacity { get; set; } = 0.12;
+    public List<ZoneDefinition> Zones { get; set; } = new();
+
+    // 마이그레이션용
     public double SplitX { get; set; } = 0;
     public double SplitY { get; set; } = 0;
-
-    public double OverlayOpacity { get; set; } = 0.55;
-    public List<ZoneDefinition> Zones { get; set; } = new();
 }
 
 public static class ConfigStore
@@ -47,11 +55,9 @@ public static class ConfigStore
                 Current = new AppConfig();
             }
 
-            // 구버전 SplitX/Y → 새 형식으로 마이그레이션
-            if (Current.VerticalLines.Count == 0 && Current.SplitX > 0)
-                Current.VerticalLines.Add(Current.SplitX);
-            if (Current.HorizontalLines.Count == 0 && Current.SplitY > 0)
-                Current.HorizontalLines.Add(Current.SplitY);
+            // 구버전 마이그레이션: SplitX/Y → SplitPoints
+            if (Current.SplitPoints.Count == 0 && Current.SplitX > 0 && Current.SplitY > 0)
+                Current.SplitPoints.Add(new SplitPoint { X = Current.SplitX, Y = Current.SplitY });
 
             EnsureZones();
         }
@@ -63,29 +69,27 @@ public static class ConfigStore
         }
     }
 
-    /// <summary>
-    /// 현재 선 개수에 맞게 Zone 목록 보장
-    /// </summary>
     public static void EnsureZones()
     {
-        int cols = Current.VerticalLines.Count + 1;
-        int rows = Current.HorizontalLines.Count + 1;
-        int total = cols * rows;
+        int vCount = Current.SplitPoints.Count + Current.ExtraVLines.Count;
+        int hCount = Current.SplitPoints.Count + Current.ExtraHLines.Count;
+        int total = (vCount + 1) * (hCount + 1);
+        total = Math.Max(total, 1);
 
         string[] defaultNames = {
-            "Zone 1 (좌상)", "Zone 2 (우상)", "Zone 3 (좌하)", "Zone 4 (우하)",
+            "Zone 1", "Zone 2", "Zone 3", "Zone 4",
             "Zone 5", "Zone 6", "Zone 7", "Zone 8", "Zone 9"
         };
 
         var existingIds = Current.Zones.Select(z => z.ZoneId).ToHashSet();
         for (int i = 1; i <= total; i++)
-        {
             if (!existingIds.Contains(i))
-            {
-                string name = i <= defaultNames.Length ? defaultNames[i - 1] : $"Zone {i}";
-                Current.Zones.Add(new ZoneDefinition { ZoneId = i, DisplayName = name });
-            }
-        }
+                Current.Zones.Add(new ZoneDefinition
+                {
+                    ZoneId = i,
+                    DisplayName = i <= defaultNames.Length ? defaultNames[i - 1] : $"Zone {i}"
+                });
+
         Current.Zones = Current.Zones.OrderBy(z => z.ZoneId).ToList();
     }
 
@@ -95,13 +99,9 @@ public static class ConfigStore
         {
             var dir = Path.GetDirectoryName(ConfigPath)!;
             if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            var json = JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(ConfigPath, json);
+            File.WriteAllText(ConfigPath, JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[Config] Save 오류: {ex.Message}");
-        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[Config] Save 오류: {ex.Message}"); }
     }
 
     public static int? FindZoneForProcess(string processName)
@@ -115,18 +115,14 @@ public static class ConfigStore
     {
         foreach (var z in Current.Zones)
             z.ProcessNames.RemoveAll(p => p.Equals(processName, StringComparison.OrdinalIgnoreCase));
-
         var target = Current.Zones.FirstOrDefault(z => z.ZoneId == zoneId);
         if (target != null && !target.ProcessNames.Contains(processName, StringComparer.OrdinalIgnoreCase))
             target.ProcessNames.Add(processName);
-
         Save();
     }
 
-    public static void SaveLines(List<double> vLines, List<double> hLines)
+    public static void SaveLayout()
     {
-        Current.VerticalLines = vLines;
-        Current.HorizontalLines = hLines;
         EnsureZones();
         Save();
     }

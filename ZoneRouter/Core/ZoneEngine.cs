@@ -5,11 +5,14 @@ namespace ZoneRouter.Core;
 public static class ZoneEngine
 {
     /// <summary>
-    /// 세로선(x) 목록 + 가로선(y) 목록으로 Zone 계산
-    /// ZoneId: 좌상단부터 행 우선 순서 (1, 2, 3... )
+    /// 교차점 + 단독선으로 Zone 계산
     /// </summary>
-    public static Dictionary<int, Rect> CalcZones(List<double> vLines, List<double> hLines, Rect screen)
+    public static Dictionary<int, Rect> CalcZones(
+        List<SplitPoint> points, List<double> extraV, List<double> extraH, Rect screen)
     {
+        var vLines = points.Select(p => p.X).Concat(extraV).ToList();
+        var hLines = points.Select(p => p.Y).Concat(extraH).ToList();
+
         var xs = new List<double> { screen.Left };
         xs.AddRange(vLines.Select(x => Math.Clamp(x, screen.Left + 20, screen.Right - 20)).OrderBy(x => x));
         xs.Add(screen.Right);
@@ -26,7 +29,4 @@ public static class ZoneEngine
 
         return zones;
     }
-
-    public static Point DefaultSplitPoint(Rect screen)
-        => new(screen.Left + screen.Width / 2, screen.Top + screen.Height / 2);
 }

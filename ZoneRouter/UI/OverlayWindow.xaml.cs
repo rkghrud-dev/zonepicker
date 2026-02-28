@@ -10,33 +10,18 @@ namespace ZoneRouter.UI;
 public partial class OverlayWindow : Window
 {
     private double _dpiX = 1.0, _dpiY = 1.0;
-
-    // 다중 선
-    private List<double> _vLines = new(); // 세로선 x
-    private List<double> _hLines = new(); // 가로선 y
+    private List<SplitPoint> _points = new();
+    private List<double> _extraV = new();
+    private List<double> _extraH = new();
 
     // 드래그 상태
     private bool _isDragging = false;
-    private bool _isDraggingV = false; // true=세로선, false=가로선
-    private int _draggingIndex = -1;
-    private Point _lastMousePos;
+    private string _dragType = ""; // "point", "vline", "hline"
+    private int _dragIndex = -1;
 
     private const double BarHeight = 36;
-    private const double HandleSize = 16;
-    private const double HandleHitSize = 20;
-
-    private static readonly Brush[] ZoneBrushes =
-    [
-        new SolidColorBrush(Color.FromArgb(40, 33, 150, 243)),
-        new SolidColorBrush(Color.FromArgb(40, 76, 175, 80)),
-        new SolidColorBrush(Color.FromArgb(40, 255, 152, 0)),
-        new SolidColorBrush(Color.FromArgb(40, 156, 39, 176)),
-        new SolidColorBrush(Color.FromArgb(40, 233, 30, 99)),
-        new SolidColorBrush(Color.FromArgb(40, 0, 188, 212)),
-        new SolidColorBrush(Color.FromArgb(40, 139, 195, 74)),
-        new SolidColorBrush(Color.FromArgb(40, 255, 87, 34)),
-        new SolidColorBrush(Color.FromArgb(40, 103, 58, 183)),
-    ];
+    private const double HitSize = 40; // 핸들 히트 영역 (크게)
+    private const double DotSize = 18;
 
     public OverlayWindow()
     {
@@ -47,274 +32,354 @@ public partial class OverlayWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Width = SystemParameters.PrimaryScreenWidth;
+        Width  = SystemParameters.PrimaryScreenWidth;
         Height = SystemParameters.PrimaryScreenHeight;
-        Left = 0;
-        Top = 0;
+        Left = 0; Top = 0;
 
-        var source = PresentationSource.FromVisual(this);
-        if (source?.CompositionTarget != null)
+        var src = PresentationSource.FromVisual(this);
+        if (src?.CompositionTarget != null)
         {
-            _dpiX = source.CompositionTarget.TransformToDevice.M11;
-            _dpiY = source.CompositionTarget.TransformToDevice.M22;
+            _dpiX = src.CompositionTarget.TransformToDevice.M11;
+            _dpiY = src.CompositionTarget.TransformToDevice.M22;
         }
 
-        // 저장된 선 불러오기 (없으면 화면 중앙 기본값)
-        _vLines = ConfigStore.Current.VerticalLines.Count > 0
-            ? new List<double>(ConfigStore.Current.VerticalLines)
-            : new List<double> { SystemParameters.PrimaryScreenWidth / 2 };
-
-        _hLines = ConfigStore.Current.HorizontalLines.Count > 0
-            ? new List<double>(ConfigStore.Current.HorizontalLines)
-            : new List<double> { SystemParameters.PrimaryScreenHeight / 2 };
+        // 저장된 레이아웃 불러오기
+        if (ConfigStore.Current.SplitPoints.Count > 0)
+        {
+            _points = ConfigStore.Current.SplitPoints.Select(p => new SplitPoint { X = p.X, Y = p.Y }).ToList();
+        }
+        else
+        {
+            // 기본: 화면 중앙 교차점 1개
+            _points = new List<SplitPoint>
+            {
+                new() { X = SystemParameters.PrimaryScreenWidth / 2, Y = SystemParameters.PrimaryScreenHeight / 2 }
+            };
+        }
+        _extraV = new List<double>(ConfigStore.Current.ExtraVLines);
+        _extraH = new List<double>(ConfigStore.Current.ExtraHLines);
 
         OpacitySlider.Value = ConfigStore.Current.OverlayOpacity;
-        ApplyOpacity();
+        ApplyMode(AppState.Mode);
         RefreshUI();
     }
 
-    private void OnModeChanged(bool isZoneMode)
+    private void OnModeChanged(ZoneViewMode mode) => ApplyMode(mode);
+
+    private void ApplyMode(ZoneViewMode mode)
     {
-        var vis = isZoneMode ? Visibility.Visible : Visibility.Collapsed;
-        DimBackground.Visibility = vis;
-        ZoneCanvas.Visibility    = vis;
-        LineCanvas.Visibility    = vis;
-        HandleCanvas.Visibility  = vis;
-        ZoneBarCanvas.Visibility = vis;
+        switch (mode)
+        {
+            case ZoneViewMode.Desktop:
+                DimBackground.Visibility = Visibility.Collapsed;
+                ZoneCanvas.Visibility    = Visibility.Collapsed;
+                LineCanvas.Visibility    = Visibility.Collapsed;
+                ZoneBarCanvas.Visibility = Visibility.Collapsed;
+                HandleCanvas.Visibility  = Visibility.Collapsed;
+                ZoneModeBar.Visibility   = Visibility.Visible;
+                EditModeBar.Visibility   = Visibility.Collapsed;
+                BtnToggleMode.Content    = "바탕화면 모드";
+                BtnToggleMode.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                BtnEnterEdit.Visibility  = Visibility.Collapsed;
+                break;
 
-        BtnToggle.Content    = isZoneMode ? "존 모드 ON" : "바탕화면 모드";
-        BtnToggle.Background = isZoneMode
-            ? new SolidColorBrush(Color.FromRgb(33, 150, 243))
-            : new SolidColorBrush(Color.FromRgb(76, 175, 80));
+            case ZoneViewMode.Zone:
+                // 흰색 반투명 오버레이 (앱 보이게)
+                DimBackground.Fill       = Brushes.White;
+                DimBackground.Opacity    = ConfigStore.Current.OverlayOpacity;
+                DimBackground.Visibility = Visibility.Visible;
+                ZoneCanvas.Visibility    = Visibility.Collapsed; // 색 블록 없음
+                LineCanvas.Visibility    = Visibility.Visible;
+                ZoneBarCanvas.Visibility = Visibility.Visible;
+                HandleCanvas.Visibility  = Visibility.Collapsed; // 핸들 없음
+                ZoneModeBar.Visibility   = Visibility.Visible;
+                EditModeBar.Visibility   = Visibility.Collapsed;
+                BtnToggleMode.Content    = "존 모드 ON";
+                BtnToggleMode.Background = new SolidColorBrush(Color.FromRgb(33, 150, 243));
+                BtnEnterEdit.Visibility  = Visibility.Visible;
+                RefreshUI();
+                break;
 
-        if (isZoneMode) RefreshUI();
+            case ZoneViewMode.Edit:
+                // 바탕화면 완전 가림
+                DimBackground.Fill       = new SolidColorBrush(Color.FromRgb(15, 15, 30));
+                DimBackground.Opacity    = 0.97;
+                DimBackground.Visibility = Visibility.Visible;
+                ZoneCanvas.Visibility    = Visibility.Visible;
+                LineCanvas.Visibility    = Visibility.Visible;
+                ZoneBarCanvas.Visibility = Visibility.Collapsed;
+                HandleCanvas.Visibility  = Visibility.Visible;
+                ZoneModeBar.Visibility   = Visibility.Collapsed;
+                EditModeBar.Visibility   = Visibility.Visible;
+                RefreshUI();
+                break;
+        }
+        UpdateControlBarWidth();
     }
 
-    public void ApplyOpacity() => DimBackground.Opacity = ConfigStore.Current.OverlayOpacity;
+    private void UpdateControlBarWidth()
+    {
+        ControlBar.Width = double.NaN; // Auto
+    }
+
+    public void ApplyOpacity()
+    {
+        if (AppState.Mode == ZoneViewMode.Zone)
+        {
+            DimBackground.Opacity = ConfigStore.Current.OverlayOpacity;
+        }
+    }
 
     public void RefreshUI()
     {
         var screen = GetScreenRect();
-        var zones = ZoneEngine.CalcZones(_vLines, _hLines, screen);
+        var zones = ZoneEngine.CalcZones(_points, _extraV, _extraH, screen);
 
         Router.UpdateZones(zones.ToDictionary(
             kv => kv.Key,
             kv => WindowManager.DipToPixel(kv.Value, _dpiX, _dpiY)));
 
-        DrawZones(zones);
         DrawLines(screen);
-        DrawHandles(screen);
-        DrawZoneBars(zones);
+        if (AppState.Mode == ZoneViewMode.Edit)
+        {
+            DrawZoneLabels(zones);
+            DrawHandles(screen);
+        }
+        if (AppState.Mode == ZoneViewMode.Zone)
+            DrawZoneBars(zones);
     }
 
     private Rect GetScreenRect()
         => new(0, 0, SystemParameters.PrimaryScreenWidth, SystemParameters.PrimaryScreenHeight);
 
-    // ─── 그리기 ───────────────────────────────────────────────
-
-    private void DrawZones(Dictionary<int, Rect> zones)
-    {
-        ZoneCanvas.Children.Clear();
-        int idx = 0;
-        foreach (var kv in zones)
-        {
-            var def = ConfigStore.Current.Zones.FirstOrDefault(z => z.ZoneId == kv.Key);
-            string zoneName = def?.DisplayName ?? $"Zone {kv.Key}";
-            string apps = def?.ProcessNames.Count > 0 ? string.Join(", ", def.ProcessNames) : "앱 없음";
-
-            var rect = new Rectangle
-            {
-                Width = kv.Value.Width, Height = kv.Value.Height,
-                Fill = ZoneBrushes[idx % ZoneBrushes.Length],
-                Stroke = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)),
-                StrokeThickness = 1
-            };
-            Canvas.SetLeft(rect, kv.Value.Left);
-            Canvas.SetTop(rect, kv.Value.Top);
-            ZoneCanvas.Children.Add(rect);
-
-            var nameLabel = new TextBlock
-            {
-                Text = zoneName,
-                Foreground = Brushes.White, FontSize = 18,
-                FontWeight = FontWeights.Bold, Opacity = 0.6
-            };
-            Canvas.SetLeft(nameLabel, kv.Value.Left + kv.Value.Width / 2 - 55);
-            Canvas.SetTop(nameLabel, kv.Value.Top + kv.Value.Height / 2 - 22);
-            ZoneCanvas.Children.Add(nameLabel);
-
-            var appLabel = new TextBlock
-            {
-                Text = apps, FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromArgb(170, 180, 200, 255))
-            };
-            Canvas.SetLeft(appLabel, kv.Value.Left + kv.Value.Width / 2 - 55);
-            Canvas.SetTop(appLabel, kv.Value.Top + kv.Value.Height / 2 + 4);
-            ZoneCanvas.Children.Add(appLabel);
-
-            idx++;
-        }
-    }
+    // ─── 선 그리기 ─────────────────────────────────────────────
 
     private void DrawLines(Rect screen)
     {
         LineCanvas.Children.Clear();
-        var pen = new SolidColorBrush(Color.FromArgb(140, 255, 255, 255));
+        bool isEdit = AppState.Mode == ZoneViewMode.Edit;
+        var pen = isEdit
+            ? new SolidColorBrush(Color.FromArgb(200, 255, 255, 255))
+            : new SolidColorBrush(Color.FromArgb(80, 100, 100, 200));
+        double thick = isEdit ? 2 : 1;
         var dash = new DoubleCollection { 6, 4 };
 
-        foreach (var x in _vLines)
+        var vLines = _points.Select(p => p.X).Concat(_extraV).OrderBy(x => x);
+        var hLines = _points.Select(p => p.Y).Concat(_extraH).OrderBy(y => y);
+
+        foreach (var x in vLines)
             LineCanvas.Children.Add(new Line
             {
                 X1 = x, Y1 = 0, X2 = x, Y2 = screen.Height,
-                Stroke = pen, StrokeThickness = 1.5, StrokeDashArray = dash
+                Stroke = pen, StrokeThickness = thick, StrokeDashArray = dash
             });
 
-        foreach (var y in _hLines)
+        foreach (var y in hLines)
             LineCanvas.Children.Add(new Line
             {
                 X1 = 0, Y1 = y, X2 = screen.Width, Y2 = y,
-                Stroke = pen, StrokeThickness = 1.5, StrokeDashArray = dash
+                Stroke = pen, StrokeThickness = thick, StrokeDashArray = dash
             });
     }
+
+    // ─── Zone 레이블 (편집 모드) ───────────────────────────────
+
+    private void DrawZoneLabels(Dictionary<int, Rect> zones)
+    {
+        ZoneCanvas.Children.Clear();
+        foreach (var kv in zones)
+        {
+            var def = ConfigStore.Current.Zones.FirstOrDefault(z => z.ZoneId == kv.Key);
+            string name = def?.DisplayName ?? $"Zone {kv.Key}";
+            string apps = def?.ProcessNames.Count > 0
+                ? string.Join(", ", def.ProcessNames) : "앱 없음";
+
+            var nameLabel = new TextBlock
+            {
+                Text = name, Foreground = Brushes.White,
+                FontSize = 22, FontWeight = FontWeights.Bold, Opacity = 0.75
+            };
+            Canvas.SetLeft(nameLabel, kv.Value.Left + kv.Value.Width / 2 - 55);
+            Canvas.SetTop(nameLabel, kv.Value.Top + kv.Value.Height / 2 - 24);
+            ZoneCanvas.Children.Add(nameLabel);
+
+            var appLabel = new TextBlock
+            {
+                Text = apps, FontSize = 13,
+                Foreground = new SolidColorBrush(Color.FromArgb(160, 160, 200, 255))
+            };
+            Canvas.SetLeft(appLabel, kv.Value.Left + kv.Value.Width / 2 - 55);
+            Canvas.SetTop(appLabel, kv.Value.Top + kv.Value.Height / 2 + 6);
+            ZoneCanvas.Children.Add(appLabel);
+        }
+    }
+
+    // ─── 핸들 그리기 (편집 모드) ───────────────────────────────
 
     private void DrawHandles(Rect screen)
     {
         HandleCanvas.Children.Clear();
 
-        // 세로선 핸들 (선의 수직 중앙)
-        for (int i = 0; i < _vLines.Count; i++)
-        {
-            double x = _vLines[i];
-            double y = screen.Height / 2;
-            AddHandle(x, y, true, i);
-        }
+        // 교차점 핸들 (점)
+        for (int i = 0; i < _points.Count; i++)
+            AddPointHandle(_points[i].X, _points[i].Y, "point", i, screen);
 
-        // 가로선 핸들 (선의 수평 중앙)
-        for (int i = 0; i < _hLines.Count; i++)
-        {
-            double x = screen.Width / 2;
-            double y = _hLines[i];
-            AddHandle(x, y, false, i);
-        }
+        // 단독 세로선 핸들
+        for (int i = 0; i < _extraV.Count; i++)
+            AddLineHandle(_extraV[i], screen.Height * 0.25, "vline", i, Cursors.SizeWE);
+
+        // 단독 가로선 핸들
+        for (int i = 0; i < _extraH.Count; i++)
+            AddLineHandle(screen.Width * 0.25, _extraH[i], "hline", i, Cursors.SizeNS);
     }
 
-    private void AddHandle(double cx, double cy, bool isVertical, int index)
+    private void AddPointHandle(double cx, double cy, string type, int index, Rect screen)
     {
-        // 히트 영역 (투명 큰 원)
-        var hitArea = new Ellipse
+        // 십자 모양 + 원 핸들
+        var outer = new Ellipse
         {
-            Width = HandleHitSize, Height = HandleHitSize,
+            Width = HitSize, Height = HitSize,
             Fill = Brushes.Transparent,
-            Cursor = isVertical ? Cursors.SizeWE : Cursors.SizeNS,
-            Tag = (isVertical, index)
+            Cursor = Cursors.SizeAll,
+            Tag = (type, index)
         };
-        Canvas.SetLeft(hitArea, cx - HandleHitSize / 2);
-        Canvas.SetTop(hitArea, cy - HandleHitSize / 2);
-
-        // 보이는 핸들
-        var handle = new Ellipse
-        {
-            Width = HandleSize, Height = HandleSize,
-            Fill = new SolidColorBrush(Color.FromArgb(200, 33, 150, 243)),
-            Stroke = Brushes.White, StrokeThickness = 2,
-            IsHitTestVisible = false
-        };
-        Canvas.SetLeft(handle, cx - HandleSize / 2);
-        Canvas.SetTop(handle, cy - HandleSize / 2);
-
-        // 중앙 점
         var dot = new Ellipse
         {
-            Width = 6, Height = 6,
+            Width = DotSize, Height = DotSize,
+            Fill = new SolidColorBrush(Color.FromArgb(220, 33, 150, 243)),
+            Stroke = Brushes.White, StrokeThickness = 2.5,
+            IsHitTestVisible = false
+        };
+        var center = new Ellipse
+        {
+            Width = 8, Height = 8,
             Fill = Brushes.White,
             IsHitTestVisible = false
         };
-        Canvas.SetLeft(dot, cx - 3);
-        Canvas.SetTop(dot, cy - 3);
 
-        hitArea.MouseLeftButtonDown += Handle_MouseDown;
-        hitArea.MouseLeftButtonUp   += Handle_MouseUp;
-        hitArea.MouseMove           += Handle_MouseMove;
+        Canvas.SetLeft(outer, cx - HitSize / 2);
+        Canvas.SetTop(outer, cy - HitSize / 2);
+        Canvas.SetLeft(dot, cx - DotSize / 2);
+        Canvas.SetTop(dot, cy - DotSize / 2);
+        Canvas.SetLeft(center, cx - 4);
+        Canvas.SetTop(center, cy - 4);
 
-        // 우클릭 → 삭제 메뉴
-        var ctxMenu = new ContextMenu();
-        var deleteItem = new MenuItem { Header = "이 선 삭제" };
-        bool iv = isVertical; int idx = index;
-        deleteItem.Click += (_, _) =>
-        {
-            if (iv) _vLines.RemoveAt(idx);
-            else    _hLines.RemoveAt(idx);
-            ConfigStore.SaveLines(_vLines, _hLines);
-            RefreshUI();
-        };
-        ctxMenu.Items.Add(deleteItem);
-        hitArea.ContextMenu = ctxMenu;
+        outer.MouseLeftButtonDown += Handle_Down;
+        outer.MouseLeftButtonUp   += Handle_Up;
+        outer.MouseMove           += Handle_Move;
 
-        HandleCanvas.Children.Add(handle);
+        var ctx = new ContextMenu();
+        var del = new MenuItem { Header = "이 점(교차선) 삭제" };
+        int idx = index;
+        del.Click += (_, _) => { _points.RemoveAt(idx); SaveAndRefresh(); };
+        ctx.Items.Add(del);
+        outer.ContextMenu = ctx;
+
         HandleCanvas.Children.Add(dot);
-        HandleCanvas.Children.Add(hitArea);
+        HandleCanvas.Children.Add(center);
+        HandleCanvas.Children.Add(outer);
     }
 
-    // ─── 드래그 ───────────────────────────────────────────────
-
-    private void Handle_MouseDown(object sender, MouseButtonEventArgs e)
+    private void AddLineHandle(double cx, double cy, string type, int index, Cursor cursor)
     {
-        if (sender is Ellipse el && el.Tag is (bool isV, int idx))
+        var outer = new Rectangle
+        {
+            Width = type == "vline" ? 20 : HitSize,
+            Height = type == "hline" ? 20 : HitSize,
+            Fill = Brushes.Transparent,
+            Cursor = cursor,
+            Tag = (type, index)
+        };
+        var dot = new Ellipse
+        {
+            Width = DotSize - 4, Height = DotSize - 4,
+            Fill = new SolidColorBrush(Color.FromArgb(200, 0, 150, 136)),
+            Stroke = Brushes.White, StrokeThickness = 2,
+            IsHitTestVisible = false
+        };
+
+        Canvas.SetLeft(outer, cx - outer.Width / 2);
+        Canvas.SetTop(outer, cy - outer.Height / 2);
+        Canvas.SetLeft(dot, cx - (DotSize - 4) / 2);
+        Canvas.SetTop(dot, cy - (DotSize - 4) / 2);
+
+        outer.MouseLeftButtonDown += Handle_Down;
+        outer.MouseLeftButtonUp   += Handle_Up;
+        outer.MouseMove           += Handle_Move;
+
+        var ctx = new ContextMenu();
+        var del = new MenuItem { Header = "이 선 삭제" };
+        string t = type; int idx = index;
+        del.Click += (_, _) =>
+        {
+            if (t == "vline") _extraV.RemoveAt(idx);
+            else              _extraH.RemoveAt(idx);
+            SaveAndRefresh();
+        };
+        ctx.Items.Add(del);
+        outer.ContextMenu = ctx;
+
+        HandleCanvas.Children.Add(dot);
+        HandleCanvas.Children.Add(outer);
+    }
+
+    // ─── 드래그 ────────────────────────────────────────────────
+
+    private void Handle_Down(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement el && el.Tag is (string type, int idx))
         {
             _isDragging = true;
-            _isDraggingV = isV;
-            _draggingIndex = idx;
-            _lastMousePos = e.GetPosition(this);
+            _dragType = type;
+            _dragIndex = idx;
             el.CaptureMouse();
             e.Handled = true;
         }
     }
 
-    private void Handle_MouseUp(object sender, MouseButtonEventArgs e)
+    private void Handle_Up(object sender, MouseButtonEventArgs e)
     {
         if (_isDragging)
         {
             _isDragging = false;
-            (sender as Ellipse)?.ReleaseMouseCapture();
-            ConfigStore.SaveLines(_vLines, _hLines);
+            (sender as FrameworkElement)?.ReleaseMouseCapture();
+            SaveAndRefresh();
             e.Handled = true;
         }
     }
 
-    private void Handle_MouseMove(object sender, MouseEventArgs e)
+    private void Handle_Move(object sender, MouseEventArgs e)
     {
         if (!_isDragging) return;
         var pos = e.GetPosition(this);
 
-        if (_isDraggingV && _draggingIndex < _vLines.Count)
-            _vLines[_draggingIndex] = pos.X;
-        else if (!_isDraggingV && _draggingIndex < _hLines.Count)
-            _hLines[_draggingIndex] = pos.Y;
-
+        switch (_dragType)
+        {
+            case "point" when _dragIndex < _points.Count:
+                _points[_dragIndex].X = pos.X;
+                _points[_dragIndex].Y = pos.Y;
+                break;
+            case "vline" when _dragIndex < _extraV.Count:
+                _extraV[_dragIndex] = pos.X;
+                break;
+            case "hline" when _dragIndex < _extraH.Count:
+                _extraH[_dragIndex] = pos.Y;
+                break;
+        }
         RefreshUI();
         e.Handled = true;
     }
 
-    // ─── 선 추가 (우클릭 컨텍스트 메뉴) ──────────────────────
-
-    private void AddVLine_Click(object sender, RoutedEventArgs e)
+    private void SaveAndRefresh()
     {
-        // 클릭한 x 위치에 세로선 추가 (컨텍스트 메뉴 위치 기준)
-        double x = SystemParameters.PrimaryScreenWidth / 2;
-        _vLines.Add(x);
-        ConfigStore.SaveLines(_vLines, _hLines);
+        ConfigStore.Current.SplitPoints = _points.Select(p => new SplitPoint { X = p.X, Y = p.Y }).ToList();
+        ConfigStore.Current.ExtraVLines = new List<double>(_extraV);
+        ConfigStore.Current.ExtraHLines = new List<double>(_extraH);
+        ConfigStore.SaveLayout();
         RefreshUI();
     }
 
-    private void AddHLine_Click(object sender, RoutedEventArgs e)
-    {
-        double y = SystemParameters.PrimaryScreenHeight / 2;
-        _hLines.Add(y);
-        ConfigStore.SaveLines(_vLines, _hLines);
-        RefreshUI();
-    }
-
-    // ─── Zone Bar (하단 작업표시줄) ───────────────────────────
+    // ─── Zone 바 (Zone 모드) ────────────────────────────────────
 
     private void DrawZoneBars(Dictionary<int, Rect> zones)
     {
@@ -329,9 +394,37 @@ public partial class OverlayWindow : Window
         }
     }
 
-    // ─── 버튼 ─────────────────────────────────────────────────
+    // ─── 버튼 핸들러 ───────────────────────────────────────────
 
-    private void BtnToggle_Click(object sender, RoutedEventArgs e) => AppState.Toggle();
+    private void BtnToggleMode_Click(object sender, RoutedEventArgs e)
+        => AppState.ToggleDesktopZone();
+
+    private void BtnEnterEdit_Click(object sender, RoutedEventArgs e)
+        => AppState.SetMode(ZoneViewMode.Edit);
+
+    private void BtnDone_Click(object sender, RoutedEventArgs e)
+        => AppState.SetMode(ZoneViewMode.Zone);
+
+    private void BtnAddPoint_Click(object sender, RoutedEventArgs e)
+    {
+        // 화면 빈 공간에 새 교차점 추가
+        double w = SystemParameters.PrimaryScreenWidth;
+        double h = SystemParameters.PrimaryScreenHeight;
+        _points.Add(new SplitPoint { X = w * 0.75, Y = h * 0.75 });
+        SaveAndRefresh();
+    }
+
+    private void BtnAddHLine_Click(object sender, RoutedEventArgs e)
+    {
+        _extraH.Add(SystemParameters.PrimaryScreenHeight * 0.75);
+        SaveAndRefresh();
+    }
+
+    private void BtnAddVLine_Click(object sender, RoutedEventArgs e)
+    {
+        _extraV.Add(SystemParameters.PrimaryScreenWidth * 0.75);
+        SaveAndRefresh();
+    }
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
