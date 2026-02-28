@@ -237,31 +237,24 @@ public partial class OverlayWindow : Window
         hit.MouseLeftButtonUp   += Handle_Up;
         hit.MouseMove           += Handle_Move;
 
-        // X 삭제 버튼 (핸들 우상단)
-        var xBtn = new Border
-        {
-            Width = 18, Height = 18,
-            Background = new SolidColorBrush(Color.FromRgb(220, 50, 50)),
-            CornerRadius = new CornerRadius(9),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock { Text = "✕", Foreground = Brushes.White, FontSize = 10, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
-        };
-        Canvas.SetLeft(xBtn, cx + DotSize / 2 - 5);
-        Canvas.SetTop(xBtn,  cy - DotSize / 2 - 5);
+        // 우클릭 → 제거 컨텍스트 메뉴
         string t = type; int idx = index;
-        xBtn.MouseLeftButtonDown += (_, e) =>
+        string menuLabel = t == "point" ? "이 교차점 제거" : "이 선 제거";
+        var ctx = new ContextMenu();
+        var removeItem = new MenuItem { Header = menuLabel };
+        removeItem.Click += (_, _) =>
         {
-            if (t == "point") _points.RemoveAt(idx);
+            if (t == "point")      _points.RemoveAt(idx);
             else if (t == "vline") _extraV.RemoveAt(idx);
             else if (t == "hline") _extraH.RemoveAt(idx);
             SaveAndRefresh();
-            e.Handled = true;
         };
+        ctx.Items.Add(removeItem);
+        hit.ContextMenu = ctx;
 
         HandleCanvas.Children.Add(dot);
         HandleCanvas.Children.Add(center);
-        HandleCanvas.Children.Add(xBtn);
-        HandleCanvas.Children.Add(hit); // hit 맨 마지막 (최상위)
+        HandleCanvas.Children.Add(hit);
     }
 
     // ─── 드래그 ────────────────────────────────────────────────
