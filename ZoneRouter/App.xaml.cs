@@ -14,7 +14,10 @@ public partial class App : Application
         {
             ConfigStore.Load();
 
-            var overlay = new OverlayWindow();
+            var background = new ZoneBackgroundWindow();
+            var overlay    = new OverlayWindow();
+
+            background.Show();
             overlay.Show();
 
             _monitor = new WindowMonitor();
@@ -22,7 +25,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"시작 오류: {ex.Message}", "ZoneRouter", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"시작 오류: {ex.Message}", "ZoneRouter",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

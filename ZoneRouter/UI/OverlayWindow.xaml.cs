@@ -82,9 +82,8 @@ public partial class OverlayWindow : Window
                 break;
 
             case ZoneViewMode.Zone:
-                DimBackground.Fill       = Brushes.White;
-                DimBackground.Opacity    = ConfigStore.Current.OverlayOpacity;
-                DimBackground.Visibility = Visibility.Visible;
+                // 배경은 ZoneBackgroundWindow가 담당 → 여기선 완전 투명
+                DimBackground.Visibility = Visibility.Collapsed;
                 ZoneCanvas.Visibility    = Visibility.Collapsed;
                 LineCanvas.Visibility    = Visibility.Visible;
                 PreviewCanvas.Visibility = Visibility.Collapsed;
