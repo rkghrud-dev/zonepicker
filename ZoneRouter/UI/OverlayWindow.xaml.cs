@@ -18,6 +18,7 @@ public partial class OverlayWindow : Window
     private bool _isDragging = false;
     private string _dragType = "";
     private int _dragIndex = -1;
+    private double _dragOffsetX, _dragOffsetY; // 클릭 위치와 핸들 중심 간 오프셋
 
     // 배치 모드 (선/점 클릭 배치)
     private string _placingType = "none"; // "none" | "point" | "vline" | "hline"
@@ -261,12 +262,24 @@ public partial class OverlayWindow : Window
 
     private void Handle_Down(object sender, MouseButtonEventArgs e)
     {
-        if (_placingType != "none") return; // 배치 모드 중엔 드래그 무시
+        if (_placingType != "none") return;
         if (sender is FrameworkElement el && el.Tag is (string type, int idx))
         {
             _isDragging = true;
             _dragType = type;
             _dragIndex = idx;
+
+            // 클릭 위치와 핸들 중심 간 오프셋 기억 (자연스러운 드래그)
+            var pos = e.GetPosition(this);
+            double cx = type == "point" ? _points[idx].X
+                      : type == "vline" ? _extraV[idx]
+                      : SystemParameters.PrimaryScreenWidth * 0.25;
+            double cy = type == "point" ? _points[idx].Y
+                      : type == "hline" ? _extraH[idx]
+                      : SystemParameters.PrimaryScreenHeight * 0.25;
+            _dragOffsetX = cx - pos.X;
+            _dragOffsetY = cy - pos.Y;
+
             el.CaptureMouse();
             e.Handled = true;
         }
@@ -278,6 +291,7 @@ public partial class OverlayWindow : Window
         {
             _isDragging = false;
             (sender as FrameworkElement)?.ReleaseMouseCapture();
+            // 드래그 끝나면 핸들 포함 전체 새로고침
             SaveAndRefresh();
             e.Handled = true;
         }
@@ -287,20 +301,27 @@ public partial class OverlayWindow : Window
     {
         if (!_isDragging) return;
         var pos = e.GetPosition(this);
+
+        // 오프셋 적용 → 클릭한 위치 기준으로 자연스럽게 이동
+        double x = pos.X + _dragOffsetX;
+        double y = pos.Y + _dragOffsetY;
+
         switch (_dragType)
         {
             case "point" when _dragIndex < _points.Count:
-                _points[_dragIndex].X = pos.X;
-                _points[_dragIndex].Y = pos.Y;
+                _points[_dragIndex].X = x;
+                _points[_dragIndex].Y = y;
                 break;
             case "vline" when _dragIndex < _extraV.Count:
-                _extraV[_dragIndex] = pos.X;
+                _extraV[_dragIndex] = x;
                 break;
             case "hline" when _dragIndex < _extraH.Count:
-                _extraH[_dragIndex] = pos.Y;
+                _extraH[_dragIndex] = y;
                 break;
         }
-        RefreshUI();
+
+        // 드래그 중에는 선만 업데이트 (HandleCanvas 재생성 안 함 → 마우스 캡처 유지)
+        DrawLines(GetScreenRect());
         e.Handled = true;
     }
 
