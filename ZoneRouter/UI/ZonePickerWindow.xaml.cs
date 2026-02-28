@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using ZoneRouter.Core;
 
 namespace ZoneRouter.UI;
 
@@ -7,16 +8,27 @@ public partial class ZonePickerWindow : Window
 {
     public event Action<int>? ZoneSelected;
 
-    public ZonePickerWindow()
+    public ZonePickerWindow(WindowInfo win)
     {
         InitializeComponent();
 
-        // Zone 이름 버튼에 반영
-        var names = Core.ConfigStore.Current.ZoneNames;
-        if (names.TryGetValue(1, out var n1)) BtnZone1.Content = n1;
-        if (names.TryGetValue(2, out var n2)) BtnZone2.Content = n2;
-        if (names.TryGetValue(3, out var n3)) BtnZone3.Content = n3;
-        if (names.TryGetValue(4, out var n4)) BtnZone4.Content = n4;
+        // 앱 정보 표시
+        AppInfoLabel.Text = $"📦 {win.ProcessName}  |  {(win.Title.Length > 40 ? win.Title[..40] + "…" : win.Title)}";
+
+        // Zone 버튼 이름 + 현재 배정 앱 표시
+        var buttons = new[] { BtnZone1, BtnZone2, BtnZone3, BtnZone4 };
+        foreach (var btn in buttons)
+        {
+            int zoneId = int.Parse(btn.Tag!.ToString()!);
+            var def = ConfigStore.Current.Zones.FirstOrDefault(z => z.ZoneId == zoneId);
+            if (def == null) continue;
+
+            string apps = def.ProcessNames.Count > 0
+                ? "\n(" + string.Join(", ", def.ProcessNames) + ")"
+                : "\n(비어있음)";
+
+            btn.Content = def.DisplayName + apps;
+        }
     }
 
     private void ZoneBtn_Click(object sender, RoutedEventArgs e)
@@ -24,7 +36,6 @@ public partial class ZonePickerWindow : Window
         if (sender is Button btn && int.TryParse(btn.Tag?.ToString(), out int zoneId))
         {
             ZoneSelected?.Invoke(zoneId);
-            DialogResult = true;
             Close();
         }
     }

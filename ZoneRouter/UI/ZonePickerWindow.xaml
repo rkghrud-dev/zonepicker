@@ -2,35 +2,50 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Zone 선택"
-        Width="320" Height="220"
+        Width="360" Height="260"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Topmost="True"
-        Background="#1E1E1E">
+        Background="#1A1A2E"
+        BorderBrush="#44FFFFFF" BorderThickness="1">
 
-    <Grid Margin="20">
+    <Grid Margin="18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="이 창을 어느 Zone으로 보낼까요?"
-                   Foreground="White" FontSize="14" FontWeight="Bold"
-                   Margin="0,0,0,16"/>
+        <!-- 감지된 앱 정보 -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="새 창이 감지됐어요!" Foreground="#88FFFFFF"
+                       FontSize="12" Margin="0,0,0,4"/>
+            <TextBlock x:Name="AppInfoLabel"
+                       Foreground="White" FontSize="15" FontWeight="Bold"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
 
-        <UniformGrid Grid.Row="1" Rows="2" Columns="2" >
-            <Button x:Name="BtnZone1" Content="Zone 1 (좌상)" Margin="4"
-                    Background="#2196F3" Foreground="White" FontWeight="Bold"
-                    BorderThickness="0" Click="ZoneBtn_Click" Tag="1"/>
-            <Button x:Name="BtnZone2" Content="Zone 2 (우상)" Margin="4"
-                    Background="#4CAF50" Foreground="White" FontWeight="Bold"
-                    BorderThickness="0" Click="ZoneBtn_Click" Tag="2"/>
-            <Button x:Name="BtnZone3" Content="Zone 3 (좌하)" Margin="4"
-                    Background="#FF9800" Foreground="White" FontWeight="Bold"
-                    BorderThickness="0" Click="ZoneBtn_Click" Tag="3"/>
-            <Button x:Name="BtnZone4" Content="Zone 4 (우하)" Margin="4"
-                    Background="#9C27B0" Foreground="White" FontWeight="Bold"
-                    BorderThickness="0" Click="ZoneBtn_Click" Tag="4"/>
+        <TextBlock Grid.Row="1" Text="어느 Zone으로 배치할까요?"
+                   Foreground="#AAAACC" FontSize="13" Margin="0,0,0,12"/>
+
+        <!-- Zone 선택 버튼들 -->
+        <UniformGrid Grid.Row="2" Rows="2" Columns="2">
+            <Button x:Name="BtnZone1" Margin="4"
+                    Background="#1565C0" Foreground="White"
+                    FontWeight="Bold" BorderThickness="0"
+                    Click="ZoneBtn_Click" Tag="1" Cursor="Hand"/>
+            <Button x:Name="BtnZone2" Margin="4"
+                    Background="#2E7D32" Foreground="White"
+                    FontWeight="Bold" BorderThickness="0"
+                    Click="ZoneBtn_Click" Tag="2" Cursor="Hand"/>
+            <Button x:Name="BtnZone3" Margin="4"
+                    Background="#E65100" Foreground="White"
+                    FontWeight="Bold" BorderThickness="0"
+                    Click="ZoneBtn_Click" Tag="3" Cursor="Hand"/>
+            <Button x:Name="BtnZone4" Margin="4"
+                    Background="#6A1B9A" Foreground="White"
+                    FontWeight="Bold" BorderThickness="0"
+                    Click="ZoneBtn_Click" Tag="4" Cursor="Hand"/>
         </UniformGrid>
     </Grid>
 </Window>

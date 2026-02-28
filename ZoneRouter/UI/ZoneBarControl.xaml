@@ -1,11 +1,38 @@
 <UserControl x:Class="ZoneRouter.UI.ZoneBarControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Height="28">
+             Height="36">
+    <Border Background="#E0101020" CornerRadius="0"
+            BorderBrush="#55FFFFFF" BorderThickness="0,1,0,0">
+        <DockPanel Margin="6,0">
 
-    <Border Background="#CC000000" CornerRadius="3">
-        <StackPanel x:Name="WindowList"
-                    Orientation="Horizontal"
-                    Margin="4,2"/>
+            <!-- Zone 이름 (더블클릭 편집) -->
+            <Border DockPanel.Dock="Left" Margin="0,0,8,0" VerticalAlignment="Center">
+                <Grid>
+                    <TextBlock x:Name="ZoneNameLabel"
+                               Foreground="#AACCFF" FontSize="12" FontWeight="Bold"
+                               VerticalAlignment="Center" Cursor="IBeam"
+                               MouseLeftButtonDown="ZoneName_MouseDown"/>
+                    <TextBox x:Name="ZoneNameEdit"
+                             Visibility="Collapsed"
+                             FontSize="12" FontWeight="Bold"
+                             Background="#333355" Foreground="White"
+                             BorderBrush="#2196F3" BorderThickness="1"
+                             Padding="4,2" MinWidth="80"
+                             KeyDown="ZoneNameEdit_KeyDown"
+                             LostFocus="ZoneNameEdit_LostFocus"/>
+                </Grid>
+            </Border>
+
+            <!-- 구분선 -->
+            <Rectangle DockPanel.Dock="Left" Width="1" Margin="0,6,8,6"
+                       Fill="#44FFFFFF"/>
+
+            <!-- 창 목록 -->
+            <ScrollViewer HorizontalScrollBarVisibility="Hidden"
+                          VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="WindowList" Orientation="Horizontal"/>
+            </ScrollViewer>
+        </DockPanel>
     </Border>
 </UserControl>

@@ -1,37 +1,26 @@
-using System.Windows;
 using System.Windows.Threading;
+using ZoneRouter.UI;
 
 namespace ZoneRouter.Core;
 
-/// <summary>
-/// 폴링 방식으로 새 창 감지 (MVP1)
-/// 새 창 발견 시 NewWindowDetected 이벤트 발생
-/// </summary>
 public class WindowMonitor
 {
     private readonly DispatcherTimer _timer;
     private HashSet<IntPtr> _knownHandles = new();
-
-    public event Action<WindowInfo>? NewWindowDetected;
+    private bool _pickerShowing = false;
+    private readonly Queue<WindowInfo> _pendingPicker = new();
 
     public WindowMonitor(int intervalMs = 400)
     {
-        _timer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(intervalMs)
-        };
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(intervalMs) };
         _timer.Tick += OnTick;
     }
 
     public void Start()
     {
-        // 현재 창 목록을 기준점으로 저장
         var current = WindowManager.GetVisibleWindows();
         _knownHandles = new HashSet<IntPtr>(current.Select(w => w.Handle));
-
-        // 저장된 규칙 즉시 적용
         Router.ApplySavedRules();
-
         _timer.Start();
     }
 
@@ -44,32 +33,51 @@ public class WindowMonitor
             var current = WindowManager.GetVisibleWindows();
             var currentHandles = new HashSet<IntPtr>(current.Select(w => w.Handle));
 
-            // 새로 생긴 창 감지
             foreach (var win in current)
             {
-                if (!_knownHandles.Contains(win.Handle))
+                if (_knownHandles.Contains(win.Handle)) continue;
+
+                System.Diagnostics.Debug.WriteLine($"[Monitor] 새 창: {win.Title} ({win.ProcessName})");
+
+                // 규칙 있으면 자동 배치
+                if (!Router.TryAutoRoute(win))
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Monitor] 새 창: {win.Title} ({win.ProcessName})");
-
-                    // 규칙 자동 적용 시도 (MVP1)
-                    // 규칙 없으면 무시 (MVP2에서 팝업 추가)
-                    if (!Router.TryAutoRoute(win))
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[Monitor] 규칙 없음: {win.ProcessName}");
-                    }
-
-                    NewWindowDetected?.Invoke(win);
+                    // 규칙 없으면 팝업 큐에 추가
+                    _pendingPicker.Enqueue(win);
                 }
             }
 
-            // Zone 창 목록 동기화
             Router.SyncZoneWindows();
-
             _knownHandles = currentHandles;
+
+            // 팝업이 안 떠있으면 다음 것 처리
+            if (!_pickerShowing && _pendingPicker.Count > 0)
+                ShowNextPicker();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[Monitor] 오류: {ex.Message}");
         }
+    }
+
+    private void ShowNextPicker()
+    {
+        if (_pendingPicker.Count == 0) return;
+        var win = _pendingPicker.Dequeue();
+
+        _pickerShowing = true;
+        var picker = new ZonePickerWindow(win);
+        picker.ZoneSelected += (zoneId) =>
+        {
+            ConfigStore.AssignProcessToZone(win.ProcessName, zoneId);
+            Router.AssignWindowToZone(win.Handle, zoneId);
+        };
+        picker.Closed += (_, _) =>
+        {
+            _pickerShowing = false;
+            // 남은 큐 처리
+            if (_pendingPicker.Count > 0) ShowNextPicker();
+        };
+        picker.Show();
     }
 }

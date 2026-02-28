@@ -2,32 +2,31 @@ using System.Windows;
 
 namespace ZoneRouter.Core;
 
-/// <summary>
-/// 점(x, y) 하나로 화면을 4개의 Zone(Rect)으로 분할하는 엔진
-/// </summary>
 public static class ZoneEngine
 {
     /// <summary>
-    /// 분할점 기준으로 4개 Zone 계산
-    /// ZoneId: 1=좌상, 2=우상, 3=좌하, 4=우하
+    /// 세로선(x) 목록 + 가로선(y) 목록으로 Zone 계산
+    /// ZoneId: 좌상단부터 행 우선 순서 (1, 2, 3... )
     /// </summary>
-    public static Dictionary<int, Rect> CalcZones(Point splitPoint, Rect screen)
+    public static Dictionary<int, Rect> CalcZones(List<double> vLines, List<double> hLines, Rect screen)
     {
-        double x = Math.Clamp(splitPoint.X, screen.Left + 20, screen.Right - 20);
-        double y = Math.Clamp(splitPoint.Y, screen.Top + 20, screen.Bottom - 20);
+        var xs = new List<double> { screen.Left };
+        xs.AddRange(vLines.Select(x => Math.Clamp(x, screen.Left + 20, screen.Right - 20)).OrderBy(x => x));
+        xs.Add(screen.Right);
 
-        return new Dictionary<int, Rect>
-        {
-            [1] = new Rect(screen.Left,  screen.Top, x - screen.Left,       y - screen.Top),
-            [2] = new Rect(x,            screen.Top, screen.Right - x,       y - screen.Top),
-            [3] = new Rect(screen.Left,  y,          x - screen.Left,        screen.Bottom - y),
-            [4] = new Rect(x,            y,          screen.Right - x,       screen.Bottom - y),
-        };
+        var ys = new List<double> { screen.Top };
+        ys.AddRange(hLines.Select(y => Math.Clamp(y, screen.Top + 20, screen.Bottom - 20)).OrderBy(y => y));
+        ys.Add(screen.Bottom);
+
+        var zones = new Dictionary<int, Rect>();
+        int id = 1;
+        for (int row = 0; row < ys.Count - 1; row++)
+            for (int col = 0; col < xs.Count - 1; col++)
+                zones[id++] = new Rect(xs[col], ys[row], xs[col + 1] - xs[col], ys[row + 1] - ys[row]);
+
+        return zones;
     }
 
-    /// <summary>
-    /// 화면 중앙을 기본 분할점으로 반환
-    /// </summary>
     public static Point DefaultSplitPoint(Rect screen)
         => new(screen.Left + screen.Width / 2, screen.Top + screen.Height / 2);
 }

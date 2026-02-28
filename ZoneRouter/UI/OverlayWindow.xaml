@@ -7,52 +7,68 @@
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
-        WindowState="Maximized">
+        Left="0" Top="0">
 
     <Grid>
-        <!-- Zone 시각화 레이어 -->
+        <!-- 바탕화면 가리기 배경 -->
+        <Rectangle x:Name="DimBackground" Fill="#1A1A2E" IsHitTestVisible="False"/>
+
+        <!-- Zone 색상 + 이름 -->
         <Canvas x:Name="ZoneCanvas" IsHitTestVisible="False"/>
 
-        <!-- 분할선 레이어 -->
+        <!-- 분할선 -->
         <Canvas x:Name="LineCanvas" IsHitTestVisible="False"/>
 
-        <!-- 드래그 가능한 분할점 -->
-        <Canvas x:Name="HandleCanvas">
-            <Ellipse x:Name="SplitHandle"
-                     Width="20" Height="20"
-                     Fill="#CC2196F3"
-                     Stroke="White" StrokeThickness="2"
-                     Cursor="SizeAll"
-                     Canvas.Left="0" Canvas.Top="0"
-                     MouseLeftButtonDown="SplitHandle_MouseDown"
-                     MouseLeftButtonUp="SplitHandle_MouseUp"
-                     MouseMove="SplitHandle_MouseMove"/>
+        <!-- Zone 하단 작업표시줄 -->
+        <Canvas x:Name="ZoneBarCanvas" Background="Transparent"/>
+
+        <!-- 선 드래그 핸들들 -->
+        <Canvas x:Name="HandleCanvas" Background="Transparent">
+            <Canvas.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="세로선 추가 (↕)" Click="AddVLine_Click"/>
+                    <MenuItem Header="가로선 추가 (↔)" Click="AddHLine_Click"/>
+                </ContextMenu>
+            </Canvas.ContextMenu>
         </Canvas>
 
-        <!-- 하단 컨트롤 바 -->
-        <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center"
-                    Orientation="Horizontal" Margin="0,0,0,20">
+        <!-- 컨트롤 바 (항상 표시) -->
+        <Border x:Name="ControlBar"
+                VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                Margin="0,0,20,20"
+                Background="#DD1A1A2E" CornerRadius="10"
+                BorderBrush="#44FFFFFF" BorderThickness="1"
+                Width="300" Height="56">
+            <Grid Margin="8,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-            <Button x:Name="BtnConfirm" Content="분할 확정"
-                    Width="100" Height="36" Margin="5,0"
-                    Background="#2196F3" Foreground="White"
-                    FontWeight="Bold" BorderThickness="0"
-                    Click="BtnConfirm_Click"/>
+                <Button x:Name="BtnToggle" Grid.Column="0"
+                        Width="110" Height="36"
+                        Background="#2196F3" Foreground="White"
+                        FontWeight="Bold" FontSize="12"
+                        BorderThickness="0" Content="존 모드 ON"
+                        Click="BtnToggle_Click" Cursor="Hand"/>
 
-            <Button x:Name="BtnSendActive" Content="활성 창 → Zone"
-                    Width="130" Height="36" Margin="5,0"
-                    Background="#4CAF50" Foreground="White"
-                    FontWeight="Bold" BorderThickness="0"
-                    Click="BtnSendActive_Click"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="8,0">
+                    <TextBlock Text="🌑" Foreground="White" FontSize="13"
+                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <Slider x:Name="OpacitySlider"
+                            Width="80" Minimum="0" Maximum="0.9"
+                            Value="0.55" VerticalAlignment="Center"
+                            ValueChanged="OpacitySlider_ValueChanged"/>
+                </StackPanel>
 
-            <Button x:Name="BtnToggle" Content="오버레이 보기"
-                    Width="110" Height="36" Margin="5,0"
-                    Background="#FF9800" Foreground="White"
-                    FontWeight="Bold" BorderThickness="0"
-                    Click="BtnToggle_Click"/>
-        </StackPanel>
-
-        <!-- Zone Bar 영역 (각 Zone 상단) -->
-        <Canvas x:Name="ZoneBarCanvas" IsHitTestVisible="True"/>
+                <Button Grid.Column="2" Content="✕"
+                        Width="24" Height="24"
+                        Background="Transparent" Foreground="#88FFFFFF"
+                        BorderThickness="0" FontSize="13"
+                        Click="BtnExit_Click" Cursor="Hand"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
